@@ -1,0 +1,1750 @@
+// Función para comprimir imagen
+        function compressImage(file, maxWidth = 800, quality = 0.7) {
+            return new Promise((resolve) => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const img = new Image();
+                
+                img.onload = function() {
+                    let { width, height } = img;
+                    if (width > height) {
+                        if (width > maxWidth) {
+                            height = (height * maxWidth) / width;
+                            width = maxWidth;
+                        }
+                    } else {
+                        if (height > maxWidth) {
+                            width = (width * maxWidth) / height;
+                            height = maxWidth;
+                        }
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+                    resolve(compressedDataUrl);
+                };
+                
+                if (typeof file === 'string') {
+                    img.src = file;
+                } else {
+                    const reader = new FileReader();
+                    reader.onload = (e) => img.src = e.target.result;
+                    reader.readAsDataURL(file);
+                }
+            });
+        }
+
+        // PWA Functions
+        function checkPWAStatus() {
+            if (window.matchMedia('(display-mode: standalone)').matches || 
+                window.navigator.standalone === true) {
+                isInstalled = true;
+                document.getElementById('pwaStatus').classList.add('show');
+                document.getElementById('installButton').style.display = 'none';
+                log('PWA: App ejecutándose como aplicación instalada');
+            } else {
+                document.getElementById('pwaStatus').classList.remove('show');
+                log('PWA: App ejecutándose en navegador');
+            }
+        }
+
+        function installPWA() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        log('PWA: Usuario aceptó la instalación');
+                        addActivity('App instalada en el dispositivo');
+                    } else {
+                        log('PWA: Usuario rechazó la instalación');
+                    }
+                    deferredPrompt = null;
+                    document.getElementById('installButton').classList.remove('show');
+                }).catch(error => {
+                    log('PWA: Error en prompt de instalación');
+                });
+            } else {
+                const instructions = getInstallInstructions();
+                alert(instructions);
+                log('PWA: Mostrando instrucciones manuales de instalación');
+            }
+        }
+
+        function getInstallInstructions() {
+            const userAgent = navigator.userAgent.toLowerCase();
+            let instructions = '💡 Para instalar esta app:\n\n';
+            
+            if (userAgent.includes('android')) {
+                instructions += '📱 Android:\n' +
+                              '1. Toca el menú (⋮) del navegador\n' +
+                              '2. Selecciona "Agregar a pantalla de inicio"\n' +
+                              '3. Confirma la instalación';
+            } else if (userAgent.includes('iphone') || userAgent.includes('ipad')) {
+                instructions += '📱 iOS (Safari):\n' +
+                              '1. Toca el botón de compartir (□↗)\n' +
+                              '2. Selecciona "Agregar a pantalla de inicio"\n' +
+                              '3. Confirma la instalación';
+            } else if (userAgent.includes('chrome')) {
+                instructions += '💻 Chrome:\n' +
+                              '1. Haz clic en el menú (⋮) del navegador\n' +
+                              '2. Selecciona "Instalar Rossetti Consignas"\n' +
+                              '3. Confirma la instalación';
+            } else if (userAgent.includes('edge')) {
+                instructions += '💻 Edge:\n' +
+                              '1. Haz clic en el menú (...) del navegador\n' +
+                              '2. Selecciona "Aplicaciones" → "Instalar este sitio como aplicación"\n' +
+                              '3. Confirma la instalación';
+            } else {
+                instructions += '💻 Navegador:\n' +
+                              '1. Busca el ícono de instalación en la barra de direcciones\n' +
+                              '2. O usa el menú del navegador\n' +
+                              '3. Selecciona "Instalar" o "Agregar a pantalla de inicio"';
+            }
+            
+            return instructions;
+        }
+
+        // Firebase functions
+        function loadDemoConfig() {
+            document.getElementById('apiKey').value = 'AIzaSyAY0htgb7LyxdTtdMl_sXATKSqT9ent';
+            document.getElementById('authDomain').value = 'rossetti-consignas-9b9c5.firebaseapp.com';
+            document.getElementById('databaseURL').value = 'https://rossetti-consignas-9b9c5-default-rtdb.firebaseio.com/';
+            document.getElementById('projectId').value = 'rossetti-consignas-9b9c5';
+            document.getElementById('storageBucket').value = 'rossetti-consignas-9b9c5.firebasestorage.app';
+            document.getElementById('messagingSenderId').value = '458047017752';
+            document.getElementById('appId').value = '1:458047017752:web:ca90322ec15a54472e';
+            log('Configuración cargada');
+            alert('✅ Datos cargados. Ahora conecta Firebase.');
+        }
+
+        function connectFirebase() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const authDomain = document.getElementById('authDomain').value.trim();
+            const databaseURL = document.getElementById('databaseURL').value.trim();
+            const projectId = document.getElementById('projectId').value.trim();
+            const storageBucket = document.getElementById('storageBucket').value.trim();
+            const messagingSenderId = document.getElementById('messagingSenderId').value.trim();
+            const appId = document.getElementById('appId').value.trim();
+
+            if (!apiKey || !authDomain || !databaseURL || !projectId) {
+                alert('❌ Completa los campos principales');
+                return;
+            }
+
+            if (typeof window.firebase === 'undefined') {
+                alert('❌ Firebase no disponible');
+                return;
+            }
+
+            firebaseConfig = { 
+                apiKey, authDomain, databaseURL, projectId, 
+                storageBucket, messagingSenderId, appId 
+            };
+
+            try {
+                updateConnectionStatus('connecting', 'Conectando...');
+                
+                if (window.firebase.apps.length > 0) {
+                    window.firebase.app().delete().then(() => {
+                        window.firebase.initializeApp(firebaseConfig);
+                        database = window.firebase.database();
+                        setupConnection();
+                    });
+                } else {
+                    window.firebase.initializeApp(firebaseConfig);
+                    database = window.firebase.database();
+                    setupConnection();
+                }
+            } catch (error) {
+                log('Error: ' + error.message);
+                updateConnectionStatus('disconnected', 'Error de conexión');
+                alert('❌ Error: ' + error.message);
+                isConnected = false;
+            }
+        }
+
+        function setupConnection() {
+            const testRef = database.ref('test');
+            testRef.set({ timestamp: Date.now() }).then(() => {
+                log('Test OK');
+                testRef.remove();
+                setupRealtimeListeners();
+                loadAllData();
+                updateConnectionStatus('connected', 'Conectado');
+                isConnected = true;
+                alert('🎉 ¡Conectado exitosamente!');
+            }).catch(error => {
+                log('Error: ' + error.message);
+                updateConnectionStatus('disconnected', 'Error de conexión');
+                alert('❌ Error: ' + error.message);
+            });
+        }
+
+        function setupRealtimeListeners() {
+            database.ref('inventory').on('value', snapshot => {
+                if (snapshot.exists()) {
+                    inventory = Object.values(snapshot.val());
+                    loadItemsGrid();
+                    updateDashboard();
+                }
+            });
+
+            database.ref('sales').on('value', snapshot => {
+                if (snapshot.exists()) {
+                    sales = Object.values(snapshot.val());
+                    loadSalesList();
+                    updateDashboard();
+                }
+            });
+
+            database.ref('payments').on('value', snapshot => {
+                if (snapshot.exists()) {
+                    payments = Object.values(snapshot.val());
+                    loadPaymentsList();
+                    updateDashboard();
+                }
+            });
+
+            database.ref('activities').limitToLast(50).on('value', snapshot => {
+                if (snapshot.exists()) {
+                    activities = Object.values(snapshot.val()).reverse();
+                    updateRecentActivity();
+                }
+            });
+        }
+
+        function loadAllData() {
+            database.ref('inventory').once('value').then(snapshot => {
+                if (snapshot.exists()) {
+                    inventory = Object.values(snapshot.val());
+                    loadItemsGrid();
+                }
+            });
+            
+            database.ref('sales').once('value').then(snapshot => {
+                if (snapshot.exists()) {
+                    sales = Object.values(snapshot.val());
+                    loadSalesList();
+                }
+            });
+            
+            database.ref('payments').once('value').then(snapshot => {
+                if (snapshot.exists()) {
+                    payments = Object.values(snapshot.val());
+                    loadPaymentsList();
+                }
+            });
+            
+            database.ref('activities').limitToLast(50).once('value').then(snapshot => {
+                if (snapshot.exists()) {
+                    activities = Object.values(snapshot.val()).reverse();
+                    updateRecentActivity();
+                }
+            });
+        }
+
+        function disconnectFirebase() {
+            if (database) {
+                database.ref('inventory').off();
+                database.ref('sales').off();
+                database.ref('payments').off();
+                database.ref('activities').off();
+            }
+            isConnected = false;
+            updateConnectionStatus('disconnected', 'Desconectado');
+            alert('🔌 Desconectado');
+        }
+
+        function syncData() {
+            if (!isConnected) {
+                alert('⚠️ No conectado a Firebase');
+                return;
+            }
+            
+            const inventoryObj = {};
+            const salesObj = {};
+            const paymentsObj = {};
+            const activitiesObj = {};
+            
+            inventory.forEach(item => inventoryObj[item.id] = item);
+            sales.forEach(item => salesObj[item.id] = item);
+            payments.forEach(item => paymentsObj[item.id] = item);
+            activities.forEach(item => activitiesObj[item.id] = item);
+            
+            Promise.all([
+                database.ref('inventory').set(inventoryObj),
+                database.ref('sales').set(salesObj),
+                database.ref('payments').set(paymentsObj),
+                database.ref('activities').set(activitiesObj)
+            ]).then(() => {
+                alert('🔄 Sincronizado OK');
+            }).catch(error => {
+                alert('❌ Error sincronización: ' + error.message);
+            });
+        }
+
+        function saveToFirebase(collection, data) {
+            if (!isConnected) return;
+            database.ref(collection + '/' + data.id).set(data);
+        }
+
+        // Navigation functions
+        function showSection(sectionId) {
+            const sections = document.querySelectorAll('.content-section');
+            sections.forEach(section => section.classList.remove('active'));
+            document.getElementById(sectionId).classList.add('active');
+            
+            const tabs = document.querySelectorAll('.nav-tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+
+            if (sectionId === 'sales') {
+                loadSalesList();
+            } else if (sectionId === 'payments') {
+                loadPaymentsList();
+                loadPaymentSalesOptions();
+            }
+        }
+
+        // Modal functions
+        function openAddItemModal() {
+            currentEditingItem = null;
+            document.getElementById('itemModalTitle').textContent = 'Agregar Item';
+            document.getElementById('itemForm').reset();
+            document.getElementById('imagePreview').innerHTML = '';
+            capturedImages = [];
+            document.getElementById('itemModal').style.display = 'block';
+        }
+
+        function openSaleModal() {
+            loadSalesOptions();
+            document.getElementById('saleForm').reset();
+            document.getElementById('saleModal').style.display = 'block';
+        }
+
+        function openPaymentModal() {
+            loadPaymentSalesOptions();
+            document.getElementById('paymentForm').reset();
+            document.getElementById('paymentDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('paymentModal').style.display = 'block';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+            if (modalId === 'itemModal') {
+                capturedImages = [];
+                currentEditingItem = null;
+                document.getElementById('imagePreview').innerHTML = '';
+            }
+        }
+
+        // Camera functions
+        function openCamera() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.capture = 'environment';
+            input.onchange = async function(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    if (file.size > 5 * 1024 * 1024) {
+                        alert('⚠️ La imagen es muy grande. Máximo 5MB.');
+                        return;
+                    }
+                    const compressedImage = await compressImage(file, 600, 0.6);
+                    createImagePreview(compressedImage, true);
+                }
+            };
+            input.click();
+        }
+
+        // Image handling functions
+        async function previewImages() {
+            const input = document.getElementById('itemImages');
+            const preview = document.getElementById('imagePreview');
+            
+            const existingCameraImages = Array.from(preview.querySelectorAll('.camera-image'));
+            preview.innerHTML = '';
+            existingCameraImages.forEach(img => preview.appendChild(img));
+
+            for (let file of input.files) {
+                if (file.size > 5 * 1024 * 1024) {
+                    alert('⚠️ La imagen ' + file.name + ' es muy grande. Máximo 5MB.');
+                    continue;
+                }
+                
+                const compressedImage = await compressImage(file, 600, 0.7);
+                createImagePreview(compressedImage, false);
+            }
+        }
+
+        function createImagePreview(src, isFromCamera) {
+            const preview = document.getElementById('imagePreview');
+            const wrapper = document.createElement('div');
+            wrapper.style.position = 'relative';
+            wrapper.style.display = 'inline-block';
+            
+            const img = document.createElement('img');
+            img.src = src;
+            img.className = isFromCamera ? 'image-preview camera-image' : 'image-preview';
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.innerHTML = '❌';
+            removeBtn.className = 'remove-btn';
+            removeBtn.onclick = function() {
+                wrapper.remove();
+                if (isFromCamera) {
+                    const index = capturedImages.indexOf(src);
+                    if (index > -1) capturedImages.splice(index, 1);
+                }
+            };
+            
+            wrapper.appendChild(img);
+            wrapper.appendChild(removeBtn);
+            preview.appendChild(wrapper);
+            
+            if (isFromCamera) {
+                capturedImages.push(src);
+            }
+        }
+
+        // Inventory functions
+        function filterItems() {
+            const searchTerm = document.getElementById('searchItems').value.toLowerCase();
+            const cards = document.querySelectorAll('#itemsGrid .item-card');
+            cards.forEach(card => {
+                const text = card.textContent.toLowerCase();
+                card.style.display = text.indexOf(searchTerm) !== -1 ? 'block' : 'none';
+            });
+        }
+
+        function deleteItem(id) {
+            const item = inventory.find(i => i.id === id);
+            if (!item) return;
+
+            let confirmMessage = '¿Eliminar este item?';
+            
+            if (item.status === 'sold') {
+                confirmMessage = `Este item está VENDIDO.\n\n¿Eliminar permanentemente?\n\nItem: ${item.name}\nEstado: Vendido`;
+            }
+
+            if (confirm(confirmMessage)) {
+                if (item.status === 'sold') {
+                    const associatedSales = sales.filter(sale => sale.itemId === id);
+                    if (associatedSales.length > 0) {
+                        const deleteSales = confirm(`Tiene ${associatedSales.length} venta(s) asociada(s).\n\n¿Eliminar también las ventas y pagos?`);
+                        
+                        if (deleteSales) {
+                            associatedSales.forEach(sale => {
+                                const paymentsToDelete = payments.filter(p => p.saleId === sale.id);
+                                paymentsToDelete.forEach(payment => {
+                                    payments = payments.filter(p => p.id !== payment.id);
+                                    if (isConnected) {
+                                        database.ref('payments/' + payment.id).remove();
+                                    }
+                                });
+                                
+                                sales = sales.filter(s => s.id !== sale.id);
+                                if (isConnected) {
+                                    database.ref('sales/' + sale.id).remove();
+                                }
+                            });
+                            
+                            addActivity(`Eliminado item vendido "${item.name}" con ${associatedSales.length} venta(s)`);
+                        } else {
+                            addActivity(`Eliminado item vendido "${item.name}" (ventas conservadas)`);
+                        }
+                    }
+                }
+                
+                inventory = inventory.filter(item => item.id !== id);
+                if (isConnected) {
+                    database.ref('inventory/' + id).remove();
+                }
+                
+                loadItemsGrid();
+                loadSalesList();
+                loadPaymentsList();
+                updateDashboard();
+                
+                if (item.status !== 'sold') {
+                    addActivity('Eliminado: ' + item.name);
+                }
+            }
+        }
+
+        function editItem(id) {
+            const item = inventory.find(i => i.id === id);
+            if (!item) {
+                alert('Item no encontrado');
+                return;
+            }
+
+            currentEditingItem = item;
+            document.getElementById('itemModalTitle').textContent = 'Editar Item';
+            
+            document.getElementById('itemName').value = item.name || '';
+            document.getElementById('itemCategory').value = item.category || '';
+            document.getElementById('purchasePrice').value = item.purchasePrice || '';
+            document.getElementById('salePrice').value = item.salePrice || '';
+            document.getElementById('itemCondition').value = item.condition || '';
+            document.getElementById('itemLocation').value = item.location || '';
+            document.getElementById('itemDescription').value = item.description || '';
+            
+            const preview = document.getElementById('imagePreview');
+            preview.innerHTML = '';
+            capturedImages = [];
+            
+            if (item.images && item.images.length > 0) {
+                item.images.forEach(imageSrc => {
+                    createImagePreview(imageSrc, true);
+                });
+            }
+            
+            document.getElementById('itemModal').style.display = 'block';
+        }
+
+        function loadItemsGrid() {
+            const grid = document.getElementById('itemsGrid');
+            grid.innerHTML = '';
+
+            if (inventory.length === 0) {
+                grid.innerHTML = '<p style="text-align: center; color: #718096; padding: 40px;">No hay items</p>';
+                return;
+            }
+
+            inventory.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'item-card';
+                
+                const statusClass = item.status === 'available' ? 'status-available' : 
+                                  item.status === 'sold' ? 'status-sold' : 'status-reserved';
+                const statusText = item.status === 'available' ? 'Disponible' : 
+                                 item.status === 'sold' ? 'Vendido' : 'Reservado';
+
+                card.innerHTML = `
+                    <div class="item-image">
+                        ${item.images && item.images.length > 0 ? `<img src="${item.images[0]}" alt="${item.name}">` : '📦'}
+                    </div>
+                    <h3>${item.name}</h3>
+                    <p><strong>Categoría:</strong> ${item.category}</p>
+                    <p><strong>Estado:</strong> ${item.condition}</p>
+                    <p><strong>Precio:</strong> ${item.salePrice.toLocaleString()}</p>
+                    <p><strong>Ubicación:</strong> ${item.location || 'N/A'}</p>
+                    <p class="${statusClass}"><strong>Estado:</strong> ${statusText}</p>
+                    <div style="margin-top: 15px;">
+                        <button class="btn btn-primary" onclick="editItem('${item.id}')">✏️ Editar</button>
+                        <button class="btn btn-danger" onclick="deleteItem('${item.id}')">🗑️ Eliminar</button>
+                    </div>
+                `;
+                
+                grid.appendChild(card);
+            });
+        }
+
+        // Sales functions
+        function updateSalePrice() {
+            const itemId = document.getElementById('saleItem').value;
+            const item = inventory.find(i => i.id === itemId);
+            if (item) {
+                document.getElementById('finalSalePrice').value = item.salePrice;
+            }
+        }
+
+        function loadSalesOptions() {
+            const select = document.getElementById('saleItem');
+            select.innerHTML = '<option value="">Seleccionar...</option>';
+            
+            inventory.filter(item => item.status === 'available').forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.id;
+                option.textContent = `${item.name} - ${item.salePrice.toLocaleString()}`;
+                select.appendChild(option);
+            });
+        }
+
+        function loadSalesList() {
+            const container = document.getElementById('salesList');
+            container.innerHTML = '';
+
+            if (sales.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #718096;">No hay ventas</p>';
+                return;
+            }
+
+            sales.forEach(sale => {
+                const remainingAmount = sale.salePrice - sale.totalPaid;
+                const paymentStatus = remainingAmount <= 0 ? 'completed' : 
+                                    sale.totalPaid > 0 ? 'partial' : 'pending';
+                const statusText = paymentStatus === 'completed' ? 'Pagado' :
+                                 paymentStatus === 'partial' ? 'Parcial' : 'Pendiente';
+
+                const card = document.createElement('div');
+                card.className = 'item-card';
+                card.innerHTML = `
+                    <h3>🛒 ${sale.itemName}</h3>
+                    <p><strong>Cliente:</strong> ${sale.customerName}</p>
+                    <p><strong>Teléfono:</strong> ${sale.customerPhone || 'N/A'}</p>
+                    <p><strong>Precio:</strong> ${sale.salePrice.toLocaleString()}</p>
+                    <p><strong>Pagado:</strong> ${sale.totalPaid.toLocaleString()}</p>
+                    <p><strong>Pendiente:</strong> ${remainingAmount.toLocaleString()}</p>
+                    <p class="payment-status-${paymentStatus}"><strong>Estado:</strong> ${statusText}</p>
+                    <p><strong>Fecha:</strong> ${new Date(sale.saleDate).toLocaleDateString()}</p>
+                    ${sale.notes ? `<p><strong>Notas:</strong> ${sale.notes}</p>` : ''}
+                    <div style="margin-top: 15px;">
+                        ${remainingAmount > 0 ? `<button class="btn btn-success" onclick="quickPayment('${sale.id}')">💰 Cobrar</button>` : ''}
+                        <button class="btn btn-primary" onclick="viewSaleDetails('${sale.id}')">👁️ Ver</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function quickPayment(saleId) {
+            const sale = sales.find(s => s.id === saleId);
+            if (!sale) return;
+
+            const remainingAmount = sale.salePrice - sale.totalPaid;
+            const amount = prompt(`Monto (Pendiente: ${remainingAmount.toLocaleString()}):`, remainingAmount);
+            
+            if (amount && parseFloat(amount) > 0) {
+                const paymentAmount = parseFloat(amount);
+                const newPayment = {
+                    id: generateId(),
+                    saleId: saleId,
+                    amount: paymentAmount,
+                    method: 'Efectivo',
+                    date: new Date().toISOString(),
+                    notes: 'Pago rápido'
+                };
+
+                payments.push(newPayment);
+                saveToFirebase('payments', newPayment);
+                
+                const saleIndex = sales.findIndex(s => s.id === saleId);
+                if (saleIndex !== -1) {
+                    sales[saleIndex].totalPaid += paymentAmount;
+                    saveToFirebase('sales', sales[saleIndex]);
+                }
+                
+                loadPaymentsList();
+                loadSalesList();
+                updateDashboard();
+                addActivity(`Pago: ${paymentAmount.toLocaleString()}`);
+            }
+        }
+
+        function viewSaleDetails(saleId) {
+            const sale = sales.find(s => s.id === saleId);
+            if (!sale) return;
+            
+            const salePayments = payments.filter(p => p.saleId === saleId);
+            const paymentHistory = salePayments.map(p => 
+                `${new Date(p.date).toLocaleDateString()}: ${p.amount.toLocaleString()}`
+            ).join('\n');
+            
+            alert(`${sale.itemName}\nCliente: ${sale.customerName}\nPrecio: ${sale.salePrice.toLocaleString()}\nPagado: ${sale.totalPaid.toLocaleString()}\nPendiente: ${(sale.salePrice - sale.totalPaid).toLocaleString()}\n\nPagos:\n${paymentHistory || 'Ninguno'}`);
+        }
+
+        // Payment functions
+        function loadPaymentSalesOptions() {
+            const select = document.getElementById('paymentSale');
+            select.innerHTML = '<option value="">Seleccionar...</option>';
+            
+            sales.filter(sale => sale.totalPaid < sale.salePrice).forEach(sale => {
+                const remaining = sale.salePrice - sale.totalPaid;
+                const option = document.createElement('option');
+                option.value = sale.id;
+                option.textContent = `${sale.itemName} - ${sale.customerName} (${remaining.toLocaleString()})`;
+                select.appendChild(option);
+            });
+        }
+
+        function loadPaymentsList() {
+            const container = document.getElementById('paymentsList');
+            container.innerHTML = '';
+
+            if (payments.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #718096;">No hay pagos</p>';
+                return;
+            }
+
+            const sortedPayments = payments.slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            sortedPayments.forEach(payment => {
+                const sale = sales.find(s => s.id === payment.saleId);
+                const card = document.createElement('div');
+                card.className = 'item-card';
+                card.innerHTML = `
+                    <h3>💰 Pago Recibido</h3>
+                    <p><strong>Venta:</strong> ${sale ? sale.itemName : 'N/A'}</p>
+                    <p><strong>Cliente:</strong> ${sale ? sale.customerName : 'N/A'}</p>
+                    <p><strong>Monto:</strong> ${payment.amount.toLocaleString()}</p>
+                    <p><strong>Método:</strong> ${payment.method}</p>
+                    <p><strong>Fecha:</strong> ${new Date(payment.date).toLocaleDateString()}</p>
+                    ${payment.notes ? `<p><strong>Notas:</strong> ${payment.notes}</p>` : ''}
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // Dashboard functions
+        function updateDashboard() {
+            const availableItems = inventory.filter(item => item.status === 'available').length;
+            document.getElementById('totalItems').textContent = availableItems;
+            document.getElementById('totalSales').textContent = sales.length;
+            
+            const totalRevenue = payments.reduce((sum, payment) => sum + payment.amount, 0);
+            document.getElementById('totalRevenue').textContent = totalRevenue.toLocaleString();
+            
+            const pendingPayments = sales.reduce((sum, sale) => sum + (sale.salePrice - sale.totalPaid), 0);
+            document.getElementById('pendingPayments').textContent = pendingPayments.toLocaleString();
+        }
+
+        function updateRecentActivity() {
+            const container = document.getElementById('recentActivity');
+            if (activities.length === 0) {
+                container.innerHTML = '<p style="color: #718096; text-align: center;">Sin actividades</p>';
+                return;
+            }
+            
+            let html = '';
+            activities.slice(0, 5).forEach(activity => {
+                html += `
+                    <div style="padding: 10px; border-left: 4px solid #667eea; margin-bottom: 10px; background: #f8f9ff;">
+                        <p style="margin: 0; font-weight: 500;">${activity.description}</p>
+                        <small style="color: #718096;">${new Date(activity.timestamp).toLocaleString()}</small>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function addActivity(description) {
+            const newActivity = {
+                id: generateId(),
+                description: description,
+                timestamp: new Date().toISOString()
+            };
+            activities.unshift(newActivity);
+            if (activities.length > 50) {
+                activities = activities.slice(0, 50);
+            }
+            saveToFirebase('activities', newActivity);
+            updateRecentActivity();
+        }
+
+        // Report functions
+        function generateReport() {
+            const period = document.getElementById('reportPeriod').value;
+            const container = document.getElementById('reportResults');
+            
+            let filteredSales = sales.slice();
+            let filteredPayments = payments.slice();
+
+            const now = new Date();
+            let startDate = new Date(0);
+
+            if (period === 'today') {
+                startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            } else if (period === 'week') {
+                startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+            } else if (period === 'month') {
+                startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            } else if (period === 'year') {
+                startDate = new Date(now.getFullYear(), 0, 1);
+            }
+
+            if (period !== 'all') {
+                filteredSales = sales.filter(sale => new Date(sale.saleDate) >= startDate);
+                filteredPayments = payments.filter(payment => new Date(payment.date) >= startDate);
+            }
+
+            const totalSales = filteredSales.length;
+            const totalRevenue = filteredPayments.reduce((sum, payment) => sum + payment.amount, 0);
+            const averageSale = totalSales > 0 ? totalRevenue / totalSales : 0;
+            const totalPending = filteredSales.reduce((sum, sale) => sum + (sale.salePrice - sale.totalPaid), 0);
+
+            const salesByCategory = {};
+            filteredSales.forEach(sale => {
+                const item = inventory.find(i => i.id === sale.itemId);
+                if (item) {
+                    salesByCategory[item.category] = (salesByCategory[item.category] || 0) + 1;
+                }
+            });
+
+            const periodNames = {
+                'all': 'Todo el tiempo',
+                'today': 'Hoy',
+                'week': 'Esta semana',
+                'month': 'Este mes',
+                'year': 'Este año'
+            };
+
+            let categoryHTML = '';
+            for (const category in salesByCategory) {
+                categoryHTML += `
+                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee;">
+                        <span>${category}</span>
+                        <strong>${salesByCategory[category]}</strong>
+                    </div>
+                `;
+            }
+            if (!categoryHTML) {
+                categoryHTML = '<p style="color: #718096; text-align: center; padding: 20px;">Sin datos</p>';
+            }
+
+            container.innerHTML = `
+                <div style="background: white; padding: 20px; border-radius: 10px;">
+                    <h3>📊 Reporte - ${periodNames[period]}</h3>
+                    <div class="stats-grid" style="margin: 20px 0;">
+                        <div class="stat-card">
+                            <div class="stat-number">${totalSales}</div>
+                            <div class="stat-label">Ventas</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">${totalRevenue.toLocaleString()}</div>
+                            <div class="stat-label">Ingresos</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">${Math.round(averageSale).toLocaleString()}</div>
+                            <div class="stat-label">Promedio</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">${totalPending.toLocaleString()}</div>
+                            <div class="stat-label">Pendiente</div>
+                        </div>
+                    </div>
+                    <h4>📈 Por Categoría:</h4>
+                    <div>${categoryHTML}</div>
+                </div>
+            `;
+        }
+
+        // Export function
+        function exportData() {
+            const backup = {
+                inventory: inventory,
+                sales: sales,
+                payments: payments,
+                activities: activities.slice(0, 50),
+                timestamp: new Date().toISOString(),
+                business: 'Rossetti Consignas'
+            };
+
+            const dataStr = JSON.stringify(backup, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(dataBlob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'rossetti-backup-' + new Date().toISOString().split('T')[0] + '.json';
+            link.click();
+            
+            URL.revokeObjectURL(url);
+            addActivity('Backup exportado');
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // PWA Setup
+            checkPWAStatus();
+            
+            // PWA Install Event
+            window.addEventListener('beforeinstallprompt', (e) => {
+                try {
+                    e.preventDefault();
+                    deferredPrompt = e;
+                    document.getElementById('installButton').classList.add('show');
+                    log('PWA: Evento de instalación disponible');
+                } catch (error) {
+                    log('PWA: Error en evento beforeinstallprompt');
+                }
+            });
+            
+            // PWA Installed Event
+            window.addEventListener('appinstalled', (evt) => {
+                try {
+                    log('PWA: App instalada exitosamente');
+                    addActivity('App instalada como PWA');
+                    document.getElementById('installButton').classList.remove('show');
+                    document.getElementById('pwaStatus').classList.add('show');
+                } catch (error) {
+                    log('PWA: Error en evento appinstalled');
+                }
+            });
+            
+            // Mostrar botón de instalación siempre (fallback)
+            setTimeout(() => {
+                if (!deferredPrompt && !isInstalled) {
+                    document.getElementById('installButton').classList.add('show');
+                    log('PWA: Botón de instalación mostrado (fallback)');
+                }
+            }, 3000);
+
+            // Item form
+            document.getElementById('itemForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const images = [...capturedImages];
+                const imageFiles = document.getElementById('itemImages').files;
+                
+                let itemData = {
+                    name: document.getElementById('itemName').value,
+                    category: document.getElementById('itemCategory').value,
+                    purchasePrice: parseFloat(document.getElementById('purchasePrice').value),
+                    salePrice: parseFloat(document.getElementById('salePrice').value),
+                    condition: document.getElementById('itemCondition').value,
+                    location: document.getElementById('itemLocation').value,
+                    description: document.getElementById('itemDescription').value,
+                    images: [],
+                };
+
+                if (currentEditingItem) {
+                    itemData.id = currentEditingItem.id;
+                    itemData.status = currentEditingItem.status;
+                    itemData.dateAdded = currentEditingItem.dateAdded;
+                    itemData.dateModified = new Date().toISOString();
+                } else {
+                    itemData.id = generateId();
+                    itemData.status = 'available';
+                    itemData.dateAdded = new Date().toISOString();
+                }
+
+                let processedImages = 0;
+                const totalImages = imageFiles.length + images.length;
+                
+                if (totalImages > 0) {
+                    itemData.images = [...images];
+                    
+                    if (imageFiles.length > 0) {
+                        Array.from(imageFiles).forEach(async (file) => {
+                            const compressedImage = await compressImage(file, 600, 0.7);
+                            itemData.images.push(compressedImage);
+                            processedImages++;
+                            if (processedImages === imageFiles.length) {
+                                saveItem(itemData);
+                            }
+                        });
+                    } else {
+                        saveItem(itemData);
+                    }
+                } else {
+                    saveItem(itemData);
+                }
+            });
+
+            function saveItem(itemData) {
+                if (currentEditingItem) {
+                    const itemIndex = inventory.findIndex(i => i.id === itemData.id);
+                    if (itemIndex !== -1) {
+                        inventory[itemIndex] = itemData;
+                        addActivity(`Editado: ${itemData.name}`);
+                    }
+                } else {
+                    inventory.push(itemData);
+                    addActivity(`Agregado: ${itemData.name}`);
+                }
+                
+                saveToFirebase('inventory', itemData);
+                closeModal('itemModal');
+                loadItemsGrid();
+                updateDashboard();
+                capturedImages = [];
+                currentEditingItem = null;
+            }
+
+            // Sale form
+            document.getElementById('saleForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const itemId = document.getElementById('saleItem').value;
+                const item = inventory.find(i => i.id === itemId);
+                if (!item) {
+                    alert('Selecciona un item válido');
+                    return;
+                }
+                
+                const initialPaymentValue = parseFloat(document.getElementById('initialPayment').value) || 0;
+                const newSale = {
+                    id: generateId(),
+                    itemId: itemId,
+                    itemName: item.name,
+                    salePrice: parseFloat(document.getElementById('finalSalePrice').value),
+                    customerName: document.getElementById('customerName').value,
+                    customerPhone: document.getElementById('customerPhone').value,
+                    paymentMethod: document.getElementById('paymentMethod').value,
+                    initialPayment: initialPaymentValue,
+                    totalPaid: initialPaymentValue,
+                    saleDate: new Date().toISOString(),
+                    notes: document.getElementById('saleNotes').value,
+                    status: 'active'
+                };
+                
+                sales.push(newSale);
+                saveToFirebase('sales', newSale);
+                
+                const itemIndex = inventory.findIndex(i => i.id === itemId);
+                if (itemIndex !== -1) {
+                    inventory[itemIndex].status = 'sold';
+                    saveToFirebase('inventory', inventory[itemIndex]);
+                }
+                
+                if (newSale.initialPayment > 0) {
+                    const initialPaymentRecord = {
+                        id: generateId(),
+                        saleId: newSale.id,
+                        amount: newSale.initialPayment,
+                        method: newSale.paymentMethod,
+                        date: new Date().toISOString(),
+                        notes: 'Pago inicial'
+                    };
+                    payments.push(initialPaymentRecord);
+                    saveToFirebase('payments', initialPaymentRecord);
+                }
+                
+                closeModal('saleModal');
+                loadItemsGrid();
+                loadSalesList();
+                updateDashboard();
+                addActivity(`Venta: ${newSale.itemName} - ${newSale.salePrice.toLocaleString()}`);
+            });
+
+            // Payment form
+            document.getElementById('paymentForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const saleId = document.getElementById('paymentSale').value;
+                const sale = sales.find(s => s.id === saleId);
+                if (!sale) {
+                    alert('Selecciona una venta válida');
+                    return;
+                }
+                
+                const paymentAmount = parseFloat(document.getElementById('paymentAmount').value);
+                const remainingAmount = sale.salePrice - sale.totalPaid;
+                
+                if (paymentAmount > remainingAmount + 0.01) {
+                    alert(`Monto mayor al pendiente (${remainingAmount.toLocaleString()})`);
+                    return;
+                }
+                
+                const newPayment = {
+                    id: generateId(),
+                    saleId: saleId,
+                    amount: paymentAmount,
+                    method: document.getElementById('paymentMethodPayment').value,
+                    date: document.getElementById('paymentDate').value,
+                    notes: document.getElementById('paymentNotes').value
+                };
+                
+                payments.push(newPayment);
+                saveToFirebase('payments', newPayment);
+                
+                const saleIndex = sales.findIndex(s => s.id === saleId);
+                if (saleIndex !== -1) {
+                    sales[saleIndex].totalPaid += paymentAmount;
+                    saveToFirebase('sales', sales[saleIndex]);
+                }
+                
+                closeModal('paymentModal');
+                loadPaymentsList();
+                loadSalesList();
+                updateDashboard();
+                addActivity(`Pago: ${paymentAmount.toLocaleString()} de ${sale.itemName}`);
+            });
+
+            // Initialize dashboard
+            updateDashboard();
+            updateRecentActivity();
+            loadItemsGrid();
+            log('App iniciada correctamente');
+        });
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rossetti Consignas</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Rossetti Consignas">
+    <meta name="description" content="Sistema de Gestión - Compra-Venta de Muebles Usados">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 15px;
+        }
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+        }
+        .header h1 {
+            text-align: center;
+            color: #5a67d8;
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #718096;
+            margin-bottom: 15px;
+        }
+        .connection-status {
+            text-align: center;
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        .status-connected { background: linear-gradient(45deg, #48bb78, #38a169); color: white; }
+        .status-disconnected { background: linear-gradient(45deg, #f56565, #e53e3e); color: white; }
+        .status-connecting { background: linear-gradient(45deg, #d69e2e, #b7791f); color: white; }
+        
+        /* PWA Install Button */
+        .install-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: linear-gradient(45deg, #4facfe, #00f2fe);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(79, 172, 254, 0.4);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+        .install-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 25px rgba(79, 172, 254, 0.6);
+        }
+        .install-button.show {
+            display: flex;
+        }
+        .pwa-status {
+            background: linear-gradient(45deg, #48bb78, #38a169);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin: 10px 0;
+            text-align: center;
+            display: none;
+        }
+        .pwa-status.show {
+            display: block;
+        }
+        
+        .nav-tabs {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 8px;
+            margin-top: 20px;
+        }
+        .nav-tab {
+            padding: 12px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            font-size: 14px;
+            min-height: 45px;
+        }
+        .nav-tab.active {
+            background: linear-gradient(45deg, #4facfe, #00f2fe);
+        }
+        .content-section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+            display: none;
+        }
+        .content-section.active { display: block; }
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        @media (min-width: 768px) {
+            .form-grid { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .form-group label {
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+        .form-group input, .form-group select, .form-group textarea {
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 5px;
+            min-height: 45px;
+            transition: all 0.3s ease;
+        }
+        .btn-primary { background: linear-gradient(45deg, #667eea, #764ba2); color: white; }
+        .btn-success { background: linear-gradient(45deg, #48bb78, #38a169); color: white; }
+        .btn-danger { background: linear-gradient(45deg, #f56565, #e53e3e); color: white; }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        .stat-label {
+            color: #4a5568;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        .items-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        @media (min-width: 768px) {
+            .items-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+        }
+        .item-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        .item-image {
+            width: 100%;
+            height: 200px;
+            background: #f7fafc;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 15px;
+            overflow: hidden;
+            font-size: 48px;
+        }
+        .item-image img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: cover;
+        }
+        .search-bar {
+            width: 100%;
+            padding: 12px 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 25px;
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            overflow-y: auto;
+        }
+        .modal-content {
+            background-color: white;
+            margin: 20px;
+            padding: 20px;
+            border-radius: 20px;
+            width: calc(100% - 40px);
+            max-width: 600px;
+            margin: 20px auto;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover { color: black; }
+        .firebase-config {
+            background: #f8f9ff;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+        .status-available { color: #38a169; font-weight: bold; }
+        .status-sold { color: #e53e3e; font-weight: bold; }
+        .status-reserved { color: #d69e2e; font-weight: bold; }
+        .payment-status-pending { color: #d69e2e; }
+        .payment-status-partial { color: #3182ce; }
+        .payment-status-completed { color: #38a169; }
+        .image-preview {
+            max-width: 100px;
+            max-height: 100px;
+            margin: 5px;
+            border-radius: 5px;
+            object-fit: cover;
+            border: 2px solid #e2e8f0;
+        }
+        .remove-btn {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: red;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            font-size: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏪 Rossetti Consignas</h1>
+            <p class="subtitle">Sistema de Gestión - Compra-Venta de Muebles Usados</p>
+            
+            <div id="connectionStatus" class="connection-status status-disconnected">
+                ❌ Sin conexión - Configure Firebase
+            </div>
+            
+            <div id="pwaStatus" class="pwa-status">
+                🚀 App instalada - Funciona offline
+            </div>
+            
+            <div class="nav-tabs">
+                <button class="nav-tab active" onclick="showSection('dashboard')">Dashboard</button>
+                <button class="nav-tab" onclick="showSection('inventory')">Inventario</button>
+                <button class="nav-tab" onclick="showSection('sales')">Ventas</button>
+                <button class="nav-tab" onclick="showSection('payments')">Cobros</button>
+                <button class="nav-tab" onclick="showSection('reports')">Reportes</button>
+                <button class="nav-tab" onclick="showSection('config')">Config</button>
+            </div>
+        </div>
+
+        <!-- Dashboard -->
+        <div id="dashboard" class="content-section active">
+            <h2>📊 Dashboard Principal</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalItems">0</div>
+                    <div class="stat-label">Items Stock</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="totalSales">0</div>
+                    <div class="stat-label">Ventas</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">$<span id="totalRevenue">0</span></div>
+                    <div class="stat-label">Ingresos</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">$<span id="pendingPayments">0</span></div>
+                    <div class="stat-label">Pendiente</div>
+                </div>
+            </div>
+            
+            <h3>🔥 Últimas Actividades</h3>
+            <div id="recentActivity" style="background: white; padding: 20px; border-radius: 10px; margin-top: 10px;">
+                <p style="color: #718096; text-align: center;">No hay actividades recientes</p>
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <button class="btn btn-primary" onclick="exportData()">💾 Exportar</button>
+                <button class="btn btn-success" onclick="syncData()">🔄 Sincronizar</button>
+            </div>
+        </div>
+
+        <!-- Inventario -->
+        <div id="inventory" class="content-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap;">
+                <h2>📋 Inventario</h2>
+                <button class="btn btn-primary" onclick="openAddItemModal()">+ Agregar</button>
+            </div>
+            <input type="text" class="search-bar" id="searchItems" placeholder="Buscar items..." onkeyup="filterItems()">
+            <div class="items-grid" id="itemsGrid">
+                <p style="text-align: center; color: #718096; padding: 40px;">No hay items</p>
+            </div>
+        </div>
+
+        <!-- Ventas -->
+        <div id="sales" class="content-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap;">
+                <h2>🛒 Ventas</h2>
+                <button class="btn btn-success" onclick="openSaleModal()">+ Nueva Venta</button>
+            </div>
+            <div id="salesList">
+                <p style="text-align: center; color: #718096; padding: 40px;">No hay ventas</p>
+            </div>
+        </div>
+
+        <!-- Cobros -->
+        <div id="payments" class="content-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap;">
+                <h2>💰 Cobros</h2>
+                <button class="btn btn-primary" onclick="openPaymentModal()">+ Registrar</button>
+            </div>
+            <div id="paymentsList">
+                <p style="text-align: center; color: #718096; padding: 40px;">No hay cobros</p>
+            </div>
+        </div>
+
+        <!-- Reportes -->
+        <div id="reports" class="content-section">
+            <h2>📈 Reportes</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Período:</label>
+                    <select id="reportPeriod">
+                        <option value="today">Hoy</option>
+                        <option value="week">Esta Semana</option>
+                        <option value="month">Este Mes</option>
+                        <option value="year">Este Año</option>
+                        <option value="all">Todo</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <button class="btn btn-primary" onclick="generateReport()">Generar</button>
+                </div>
+            </div>
+            <div id="reportResults" style="margin-top: 20px;">
+                <p style="text-align: center; color: #718096; padding: 40px;">Genera un reporte</p>
+            </div>
+        </div>
+
+        <!-- Configuración -->
+        <div id="config" class="content-section">
+            <h2>⚙️ Configuración Firebase</h2>
+            <div class="firebase-config">
+                <h3>🔧 Conexión</h3>
+                <p style="margin-bottom: 15px;">Datos de tu proyecto Firebase:</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>API Key:</label>
+                        <input type="text" id="apiKey" placeholder="API Key">
+                    </div>
+                    <div class="form-group">
+                        <label>Auth Domain:</label>
+                        <input type="text" id="authDomain" placeholder="proyecto.firebaseapp.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Database URL:</label>
+                        <input type="text" id="databaseURL" placeholder="https://proyecto-rtdb.firebaseio.com/">
+                    </div>
+                    <div class="form-group">
+                        <label>Project ID:</label>
+                        <input type="text" id="projectId" placeholder="proyecto-id">
+                    </div>
+                    <div class="form-group">
+                        <label>Storage Bucket:</label>
+                        <input type="text" id="storageBucket" placeholder="proyecto.appspot.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Messaging Sender ID:</label>
+                        <input type="text" id="messagingSenderId" placeholder="123456789">
+                    </div>
+                    <div class="form-group">
+                        <label>App ID:</label>
+                        <input type="text" id="appId" placeholder="1:123:web:abc">
+                    </div>
+                </div>
+                <div style="text-align: center; margin-top: 20px;">
+                    <button class="btn btn-success" onclick="connectFirebase()">Conectar</button>
+                    <button class="btn btn-primary" onclick="loadDemoConfig()">Cargar Config</button>
+                    <button class="btn btn-danger" onclick="disconnectFirebase()">Desconectar</button>
+                </div>
+                <div id="connectionLog" style="margin-top: 20px; padding: 15px; background: #f7fafc; border-radius: 10px; font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto;">
+                    <strong>Log:</strong><br>Esperando configuración...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PWA Install Button -->
+    <button id="installButton" class="install-button" onclick="installPWA()">
+        📱
+    </button>
+
+    <!-- Modal para agregar/editar items -->
+    <div id="itemModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('itemModal')">&times;</span>
+            <h2 id="itemModalTitle">Agregar Item</h2>
+            <form id="itemForm">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Nombre:</label>
+                        <input type="text" id="itemName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Categoría:</label>
+                        <select id="itemCategory" required>
+                            <option value="">Seleccionar...</option>
+                            <option value="Sillas">Sillas</option>
+                            <option value="Mesas">Mesas</option>
+                            <option value="Camas">Camas</option>
+                            <option value="Armarios">Armarios</option>
+                            <option value="Sofás">Sofás</option>
+                            <option value="Electrodomésticos">Electrodomésticos</option>
+                            <option value="Decoración">Decoración</option>
+                            <option value="Otros">Otros</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Precio Compra:</label>
+                        <input type="number" id="purchasePrice" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Precio Venta:</label>
+                        <input type="number" id="salePrice" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Estado:</label>
+                        <select id="itemCondition" required>
+                            <option value="">Seleccionar...</option>
+                            <option value="Excelente">Excelente</option>
+                            <option value="Muy Bueno">Muy Bueno</option>
+                            <option value="Bueno">Bueno</option>
+                            <option value="Regular">Regular</option>
+                            <option value="Para Restaurar">Para Restaurar</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Ubicación:</label>
+                        <input type="text" id="itemLocation" placeholder="Ej: Depósito A">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Descripción:</label>
+                    <textarea id="itemDescription" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Imágenes:</label>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
+                        <button type="button" class="btn btn-success" onclick="document.getElementById('itemImages').click()" style="padding: 8px 12px; font-size: 14px;">📁 Cargar Fotos</button>
+                        <button type="button" class="btn btn-primary" onclick="openCamera()" style="padding: 8px 12px; font-size: 14px;">📷 Tomar Foto</button>
+                    </div>
+                    <p style="font-size: 12px; color: #718096; margin-bottom: 10px;">
+                        💡 <strong>Tip:</strong> Si la cámara no funciona, usa "📁 Cargar Fotos" para seleccionar imágenes de tu galería
+                    </p>
+                    <input type="file" id="itemImages" multiple accept="image/*" onchange="previewImages()" style="display: none;">
+                    <div id="imagePreview" style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 10px;"></div>
+                </div>
+                <div style="text-align: center; margin-top: 20px;">
+                    <button type="submit" class="btn btn-success">Guardar</button>
+                    <button type="button" class="btn btn-danger" onclick="closeModal('itemModal')">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para ventas -->
+    <div id="saleModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('saleModal')">&times;</span>
+            <h2>Nueva Venta</h2>
+            <form id="saleForm">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Item:</label>
+                        <select id="saleItem" required onchange="updateSalePrice()">
+                            <option value="">Seleccionar...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Precio:</label>
+                        <input type="number" id="finalSalePrice" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Cliente:</label>
+                        <input type="text" id="customerName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Teléfono:</label>
+                        <input type="tel" id="customerPhone">
+                    </div>
+                    <div class="form-group">
+                        <label>Método de Pago:</label>
+                        <select id="paymentMethod" required>
+                            <option value="">Seleccionar...</option>
+                            <option value="Efectivo">Efectivo</option>
+                            <option value="Transferencia">Transferencia</option>
+                            <option value="Tarjeta">Tarjeta</option>
+                            <option value="Financiado">Financiado</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Monto Inicial:</label>
+                        <input type="number" id="initialPayment" step="0.01" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Notas:</label>
+                    <textarea id="saleNotes" rows="2"></textarea>
+                </div>
+                <div style="text-align: center; margin-top: 20px;">
+                    <button type="submit" class="btn btn-success">Vender</button>
+                    <button type="button" class="btn btn-danger" onclick="closeModal('saleModal')">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para pagos -->
+    <div id="paymentModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('paymentModal')">&times;</span>
+            <h2>Registrar Pago</h2>
+            <form id="paymentForm">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Venta:</label>
+                        <select id="paymentSale" required>
+                            <option value="">Seleccionar...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Monto:</label>
+                        <input type="number" id="paymentAmount" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Método:</label>
+                        <select id="paymentMethodPayment" required>
+                            <option value="">Seleccionar...</option>
+                            <option value="Efectivo">Efectivo</option>
+                            <option value="Transferencia">Transferencia</option>
+                            <option value="Tarjeta">Tarjeta</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Fecha:</label>
+                        <input type="date" id="paymentDate" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Notas:</label>
+                    <textarea id="paymentNotes" rows="2"></textarea>
+                </div>
+                <div style="text-align: center; margin-top: 20px;">
+                    <button type="submit" class="btn btn-success">Registrar</button>
+                    <button type="button" class="btn btn-danger" onclick="closeModal('paymentModal')">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+    <script>
+        // Global variables
+        let inventory = [];
+        let sales = [];
+        let payments = [];
+        let activities = [];
+        let database = null;
+        let isConnected = false;
+        let firebaseConfig = null;
+        let capturedImages = [];
+        let currentEditingItem = null;
+        let deferredPrompt;
+        let isInstalled = false;
+
+        // Utility functions
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
+
+        function log(message) {
+            const logDiv = document.getElementById('connectionLog');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += '<br>[' + timestamp + '] ' + message;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function updateConnectionStatus(status, message) {
+            const statusDiv = document.getElementById('connectionStatus');
+            statusDiv.className = 'connection-status status-' + status;
+            const icon = status === 'connected' ? '✅' : status === 'connecting' ? '🔄' : '❌';
+            statusDiv.innerHTML = icon + ' ' + message;
+            log('Estado: ' + message);
+        }
+
+        // Función para comprimir imagen
+        function compressImage(file, maxWidth = 800, quality = 0.7) {
+            return new Promise((resolve) => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas
